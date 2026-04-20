@@ -12,7 +12,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class CommunityService {
     private final RestBroker broker = new RestBroker();
@@ -88,34 +90,41 @@ public class CommunityService {
 
         String url = Config.URLS.get("communities") + Config.URLS.get("communities_getBookmarks");
         url = url.replace("${uUid}", c.getUuid());
-        String result = broker.doGetAuth(url);
-
-        if (result == null || result.isBlank()) {
-            return;
-        }
-
-        XmlUtil x = XmlUtil.parse(result);
-        NodeList entries = x.nodes("/atom:feed/atom:entry");
 
         List<Bookmark> bookmarks = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
 
-        for (int i = 0; i < entries.getLength(); i++) {
-            Element entry = (Element) entries.item(i);
-            Bookmark b = new Bookmark();
+        while (url != null && !url.isBlank() && seen.add(url)) {
+            String result = broker.doGetAuth(url);
 
-            b.setTitle(x.text("atom:title", entry));
-            b.setSummary(x.text("atom:summary", entry));
-            b.setContent(x.text("atom:content", entry));
-            b.setPublished(x.text("atom:published", entry));
-            b.setUpdated(x.text("atom:updated", entry));
+            if (result == null || result.isBlank()) {
+                return;
+            }
 
-            b.setAuthor(x.text("atom:author/snx:userid", entry));
-            b.setContributor(x.text("atom:contributor/snx:userid", entry));
+            XmlUtil x = XmlUtil.parse(result);
+            NodeList entries = x.nodes("/atom:feed/atom:entry");
 
-            // external bookmark URL = link without rel attribute
-            b.setLink(x.text("atom:link[not(@rel)]/@href", entry));
+            for (int i = 0; i < entries.getLength(); i++) {
+                Element entry = (Element) entries.item(i);
+                Bookmark b = new Bookmark();
 
-            bookmarks.add(b);
+                b.setTitle(x.text("atom:title", entry));
+                b.setSummary(x.text("atom:summary", entry));
+                b.setContent(x.text("atom:content", entry));
+                b.setPublished(x.text("atom:published", entry));
+                b.setUpdated(x.text("atom:updated", entry));
+
+                b.setAuthor(x.text("atom:author/snx:userid", entry));
+                b.setContributor(x.text("atom:contributor/snx:userid", entry));
+
+                // external bookmark URL = link without rel attribute
+                b.setLink(x.text("atom:link[not(@rel)]/@href", entry));
+
+                bookmarks.add(b);
+            }
+
+            String next = x.text("/atom:feed/atom:link[@rel='next']/@href");
+            url = (next == null || next.isBlank()) ? null : next;
         }
 
         c.setBookmarks(bookmarks);

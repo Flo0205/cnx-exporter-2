@@ -13,7 +13,9 @@ import org.w3c.dom.NodeList;
 import javax.xml.xpath.XPathExpressionException;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class BlogService {
     private final RestBroker broker = new RestBroker();
@@ -31,25 +33,33 @@ public class BlogService {
             String url = Config.URLS.get("blogs") + Config.URLS.get("blogs_getBlog");
             url = url.replace("${handle}", c.getUuid());
 
-            String xml = broker.doGetAuth(url);
-            if (xml == null || xml.isBlank()) return List.of();
-
-            XmlUtil xu = XmlUtil.parse(xml);
-            NodeList entries = xu.nodes("/atom:feed/atom:entry");
-
             List<Blog> out = new ArrayList<>();
-            for (int i = 0; i < entries.getLength(); i++) {
-                LogUtil.log(this.getClass(), "Parsing " + (i + 1) + "/" + entries.getLength());
+            Set<String> seen = new HashSet<>();
 
-                Node entry = entries.item(i);
+            while (url != null && !url.isBlank() && seen.add(url)) {
+                String xml = broker.doGetAuth(url);
+                if (xml == null || xml.isBlank()) return List.of();
 
-                Blog blog = parseBlogEntry(xu, entry);
+                XmlUtil xu = XmlUtil.parse(xml);
+                NodeList entries = xu.nodes("/atom:feed/atom:entry");
 
-                if (blog.getCommentCount() > 0) {
-                    blog.setComments(getBlogComments(c.getUuid(), blog.getUuid()));
+
+                for (int i = 0; i < entries.getLength(); i++) {
+                    LogUtil.log(this.getClass(), "Parsing " + (i + 1) + "/" + entries.getLength());
+
+                    Node entry = entries.item(i);
+
+                    Blog blog = parseBlogEntry(xu, entry);
+
+                    if (blog.getCommentCount() > 0) {
+                        blog.setComments(getBlogComments(c.getUuid(), blog.getUuid()));
+                    }
+
+                    out.add(blog);
                 }
 
-                out.add(blog);
+                String next = xu.text("/atom:feed/atom:link[@rel='next']/@href");
+                url = (next == null || next.isBlank()) ? null : next;
             }
 
             return out;

@@ -13,7 +13,7 @@ import java.util.concurrent.Callable;
 @Command(
         name = "cnx",
         mixinStandardHelpOptions = true,
-        version = "CNX-Exporter 2.0.0",
+        version = "CNX-Exporter 2.0.1",
         description = "Exports a community from CNX."
 )
 public class CNX implements Callable<Integer> {
